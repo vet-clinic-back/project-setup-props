@@ -19,10 +19,36 @@ services:
     build:
       context: ./sso-service
     container_name: sso-service
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=${DB_PORT}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
     volumes:
       - .:/sso-service
     ports:
-      - 8080:80
+      - 8080:8080
+    restart: on-failure
+    command: ["/main"]
+  
+  info-service:
+    depends_on:
+        - postgres
+    build:
+      context: ./Info-service
+    container_name: info-service
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=${DB_PORT}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - .:/info-service
+    ports:
+      - 8081:8080
+    restart: on-failure
     command: ["/main"]
 
 volumes:
