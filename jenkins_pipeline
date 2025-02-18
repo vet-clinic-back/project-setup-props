@@ -1,0 +1,129 @@
+pipeline {
+    agent any
+
+    environment {
+        DB_HOST="postgres"
+        DB_USER = "admin"
+        DB_PASSWORD = "secret"
+        DB_NAME = "vet_clinic"
+        DB_PORT = "5432"
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                script {
+                    def repos = [
+                        "info-service": "https://github.com/vet-clinic-back/Info-service.git",
+                        "sso-service": "https://github.com/vet-clinic-back/sso-service.git"
+                        // "metrics-service": "https://github.com/vet-clinic-back/metrics-service.git"
+                    ]
+                    for (repo in repos.keySet()) {
+                        dir(repo) {
+                            git url: repos[repo], branch: 'main'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Checkout Project Setup Props') {
+            steps {
+                dir('project-setup-props') {
+                    git url: 'https://github.com/vet-clinic-back/project-setup-props.git', branch: 'main'
+                }
+            }
+        }
+
+        stage('Prepare SQL File') {
+            steps {
+                sh 'mkdir -p $WORKSPACE/sql'
+                sh 'cp project-setup-props/CREATE_1.sql $WORKSPACE/sql/'
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    def services = ["info-service", "sso-service"] // "metrics-service"
+                    for (service in services) {
+                        dir(service) {
+                            sh "docker build -t vet-clinic/${service}:latest ."
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Start PostgreSQL') {
+            steps {
+                script {
+                    sh """
+                    if [ -n "\$(docker ps -aq -f name=postgres)" ]; then
+                        echo "🛑 Stopping and removing existing PostgreSQL container"
+                        docker stop \$(docker ps -aq -f name=postgres) || true
+                        docker rm \$(docker ps -aq -f name=postgres) || true
+                    fi
+
+                    docker network create vet-clinic-network || true
+
+                    
+                    docker run -d --name postgres \
+                    --network vet-clinic-network \
+                    -e POSTGRES_USER=$DB_USER \
+                    -e POSTGRES_PASSWORD=$DB_PASSWORD \
+                    -e POSTGRES_DB=$DB_NAME \
+                    -p $DB_PORT:5432 \
+                    -v pg_data:/var/lib/postgresql/data \
+                    -v $WORKSPACE/sql/CREATE_1.sql:/docker-entrypoint-initdb.d/CREATE_1.sql \
+                    postgres:14
+                    """
+                }
+            }
+        }
+
+        stage('Start Services') {
+            steps {
+                script {
+                    def services = [ // 8082 is jenkins
+                        "info-service": 8081,
+                        "sso-service": 8083
+                        // "metrics-service": 8084
+                    ]
+                    for (service in services.keySet()) {
+                        def port = services[service]
+                        sh """
+                        if [ \$(docker ps -a -q -f name=${service}) ]; then
+                            echo "🛑 Stopping and removing existing container: ${service}"
+                            docker stop ${service}
+                            docker rm ${service}
+                        fi
+                        
+                        docker run -d --name ${service} \
+                        --network vet-clinic-network \
+                        -p ${port}:8080 \
+                        -e DB_USER=$DB_USER \
+                        -e DB_PASSWORD=$DB_PASSWORD \
+                        -e DB_HOST=$DB_HOST \
+                        -e DB_NAME=$DB_NAME \
+                        -e DB_PORT=$DB_PORT \
+                        -e POSTGRES_USER=$DB_USER \
+                        -e POSTGRES_PASSWORD=$DB_PASSWORD \
+                        -e POSTGRES_DB=$DB_NAME \
+                        vet-clinic/${service}:latest
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Deployment successful!'
+        }
+        failure {
+            echo 'Build failed. Check logs!'
+        }
+    }
+}
