@@ -13,43 +13,57 @@ services:
     volumes:
       - ./CREATE_1.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres_data:/var/lib/postgresql/data
-  sso-service:
-    depends_on:
-        - postgres
-    build:
-      context: ./sso-service
-    container_name: sso-service
+      
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=${DB_PORT}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-pgadmin4@pgadmin.org}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'True'
     volumes:
-      - .:/sso-service
+      - pgadmin:/var/lib/pgadmin
     ports:
-      - 8080:8080
-    restart: on-failure
-    command: ["/main"]
+      - "${PG_ADMIN_PORT}:80"
+
+  # sso-service:
+  #   depends_on:
+  #       - postgres
+  #   build:
+  #     context: ./sso-service
+  #   container_name: sso-service
+  #   environment:
+  #     - DB_HOST=postgres
+  #     - DB_PORT=${DB_PORT}
+  #     - POSTGRES_USER=${DB_USER}
+  #     - POSTGRES_PASSWORD=${DB_PASSWORD}
+  #     - POSTGRES_DB=${DB_NAME}
+  #   volumes:
+  #     - .:/sso-service
+  #   ports:
+  #     - 8080:8080
+  #   restart: on-failure
+  #   command: ["/main"]
   
-  info-service:
-    depends_on:
-        - postgres
-    build:
-      context: ./Info-service
-    container_name: info-service
-    environment:
-      - DB_HOST=postgres
-      - DB_PORT=${DB_PORT}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
-    volumes:
-      - .:/info-service
-    ports:
-      - 8081:8080
-    restart: on-failure
-    command: ["/main"]
+  # info-service:
+  #   depends_on:
+  #       - postgres
+  #   build:
+  #     context: ./Info-service
+  #   container_name: info-service
+  #   environment:
+  #     - DB_HOST=postgres
+  #     - DB_PORT=${DB_PORT}
+  #     - POSTGRES_USER=${DB_USER}
+  #     - POSTGRES_PASSWORD=${DB_PASSWORD}
+  #     - POSTGRES_DB=${DB_NAME}
+  #   volumes:
+  #     - .:/info-service
+  #   ports:
+  #     - 8081:8080
+  #   restart: on-failure
+  #   command: ["/main"]
 
 volumes:
   postgres_data:
+  pgadmin:

@@ -112,3 +112,15 @@ COMMENT ON COLUMN medical_entry.recommendation IS 'Рекомендации';
 COMMENT ON COLUMN medical_entry.medical_record_id IS 'Ссылка на медкарту';
 COMMENT ON COLUMN medical_entry.device_number IS 'Номер устройства';
 COMMENT ON COLUMN medical_entry.veterinarian_id IS 'Идентификатор ветеринара';
+
+CREATE TABLE IF NOT EXISTS metrics (
+    id SERIAL PRIMARY KEY,
+    device_id INTEGER NOT NULL,
+    pulse DOUBLE PRECISION,
+    temperature DOUBLE PRECISION,
+    loadcell_output1 DOUBLE PRECISION,
+    loadcell_output2 DOUBLE PRECISION,
+    muscleactivity_output1 DOUBLE PRECISION,
+    muscleactivity_output2 DOUBLE PRECISION,
+    created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
+);
