@@ -15,8 +15,8 @@ pipeline {
                 script {
                     def repos = [
                         "info-service": "https://github.com/vet-clinic-back/Info-service.git",
-                        "sso-service": "https://github.com/vet-clinic-back/sso-service.git"
-                        // "metrics-service": "https://github.com/vet-clinic-back/metrics-service.git"
+                        "sso-service": "https://github.com/vet-clinic-back/sso-service.git",
+                        "metrics-service": "https://github.com/vet-clinic-back/metrics-service.git"
                     ]
                     for (repo in repos.keySet()) {
                         dir(repo) {
@@ -45,7 +45,7 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 script {
-                    def services = ["info-service", "sso-service"] // "metrics-service"
+                    def services = ["info-service", "sso-service", "metrics-service"] // "metrics-service"
                     for (service in services) {
                         dir(service) {
                             sh "docker build -t vet-clinic/${service}:latest ."
@@ -88,15 +88,16 @@ pipeline {
                     def services = [ // 8082 is jenkins
                         "info-service": 8081,
                         "sso-service": 8083
-                        // "metrics-service": 8084
                     ]
                     for (service in services.keySet()) {
                         def port = services[service]
                         sh """
-                        if [ \$(docker ps -a -q -f name=${service}) ]; then
+                        if [ -n "\$(docker ps -a -q -f name=${service})" ]; then
                             echo "🛑 Stopping and removing existing container: ${service}"
-                            docker stop ${service}
-                            docker rm ${service}
+                            docker stop ${service} || true
+                            docker rm ${service} || true
+                        else
+                            echo "✅ No existing ${service} container found."
                         fi
                         
                         docker run -d --name ${service} \
@@ -110,9 +111,43 @@ pipeline {
                         -e POSTGRES_USER=$DB_USER \
                         -e POSTGRES_PASSWORD=$DB_PASSWORD \
                         -e POSTGRES_DB=$DB_NAME \
+                        -e METRICS_HTTP_PORT=8080 \
+                        -e METRICS_ALLOW_ORIGINS= \
+                        -e METRICS_TCP_LISTEN_PORT=9000 \
                         vet-clinic/${service}:latest
                         """
                     }
+                }
+            }
+        }
+        
+        stage('Start metrics service') {
+            steps {
+                script {
+                    sh """
+                    # Check if the container exists
+                    if [ -n "\$(docker ps -a -q -f name=metrics-service)" ]; then
+                        echo "🛑 Stopping and removing existing container: metrics-service"
+                        docker stop metrics-service || true
+                        docker rm metrics-service || true
+                    else
+                        echo "✅ No existing metrics-service container found."
+                    fi
+                    
+                    # Start the metrics-service container
+                    docker run -d --name metrics-service \\
+                    --network vet-clinic-network \\
+                    -p 8084:8080 \\
+                    -p 9000:9000 \\
+                    -e POSTGRES_HOST=${DB_HOST} \\
+                    -e POSTGRES_PORT=${DB_PORT} \\
+                    -e POSTGRES_USER=${DB_USER} \\
+                    -e POSTGRES_PASSWORD=${DB_PASSWORD} \\
+                    -e POSTGRES_DB=${DB_NAME} \\
+                    -e METRICS_HTTP_PORT=8080 \\
+                    -e METRICS_TCP_LISTEN_PORT=9000 \\
+                    vet-clinic/metrics-service:latest
+                    """
                 }
             }
         }
