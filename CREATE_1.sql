@@ -122,5 +122,5 @@ CREATE TABLE IF NOT EXISTS metrics (
     loadcell_output2 DOUBLE PRECISION,
     muscleactivity_output1 DOUBLE PRECISION,
     muscleactivity_output2 DOUBLE PRECISION,
-    created_at BIGINT DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
+    created_at timestamp without time zone
 );
